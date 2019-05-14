@@ -24,7 +24,7 @@ return(convo)
 }
 
 
-
+library(lipdR)
 library(readxl)
 library(magrittr)
 library(dplyr)
@@ -34,6 +34,12 @@ path <- "~/Dropbox/CLIMATE12k excel formatted/Chironomid/"
 fname <- "Antonsson_2006_chironomids_Fennoscandia_Gilltjärnen_checkedSE.xlsx"
 
 xl <- read_xlsx(file.path(path,fname))
+
+#clean up special characters
+rosetta <- lipdverseR:::rosettaStone()
+xl <- purrr::map_df(xl,lipdverseR:::replaceSpecialCharacters,rosetta)
+
+
 
 fa <- stringr::str_extract(fname,pattern = "^[^_]+(?=_)")
 py <- stringr::str_extract(fname,pattern = "(?<=_)[^_]+(?=_)")
@@ -76,8 +82,9 @@ for(i in 1:nrow(xlm)){
 }
 
 #create dsn
-sn <- stringr::str_replace_all(string = nts$geo_siteName,pattern = "[^A-Za-z]","")
-nts$dataSetName <- stringr::str_c(fa,".",sn,".",py)
+sn <- lipdverseR:::replaceSpecialCharacters( nts$geo_siteName,rosetta)
+nts$dataSetName <- stringr::str_c(fa,".",sn,".",py) %>%
+  stringr::str_replace_all(" ","")
 
 
 # get timeseries ----------------------------------------------------------
@@ -101,6 +108,9 @@ c2 <- which(names(xlp) == "Original Date ID")
 #isolate chron
 ct <- xlp[,c2:ncol(xlp)]
 
+ct <- ct[-which(rowSums(!is.na(ct)) == 0), ]
+
+
 #isolate paleo
 pt <- xlp[,-c((c2-1):ncol(xlp))]
 
@@ -112,11 +122,13 @@ for(i in 1:length(ts)){
   #copy in metadata
   ts[[i]] <- nts
 
-  ts[[i]]$paleoData_values <- pt[,1]
+  ts[[i]]$paleoData_values <- as.matrix(pt[,i])
 
   #parse name
   ts[[i]]$paleoData_variableName <- stringr::str_replace_all(string = names(pt)[i],pattern =" ","") %>%
-    stringr::str_extract(pattern = "^[^(]+(?=())")
+    stringr::str_extract(pattern = "^[^(]+(?=())") %>%
+    stringr::str_replace_all(pattern ="[^A-Za-z0-9]","")
+
 
   #try to get units
   ts[[i]]$paleoData_units <- stringr::str_replace_all(string = names(pt)[i],pattern =" ","") %>%
@@ -126,7 +138,133 @@ for(i in 1:length(ts)){
   ts[[i]]$paleoData_TSid <- lipdR::createTSid()
 
 
+  #look for special metadata
+  #Depth
+  if(ts[[i]]$paleoData_variableName == "Depth"){
+    if(!is.na(xl[8,6])){
+      ts[[i]]$paleoData_sampleThickness <- as.numeric(xl[8,6])
+    }
+    if(!is.na(xl[9,6])){
+      ts[[i]]$paleoData_depthReference <- as.character(xl[9,6])
+    }
+    if(!is.na(xl[10,6])){
+    ts[[i]]$paleoData_notes <- as.character(xl[10,6])
+    }
+  }
+
+  #TempRecon1
+  if(ts[[i]]$paleoData_variableName == "TemperatureReconstruction1"){
+    ts[[i]]$interpretation1_variable <- "T"
+    if(!is.na(xl[6,12])){
+      ts[[i]]$interpretation1_seasonality <- as.character(xl[6,12])
+    }
+    if(!is.na(xl[7,12])){
+      ts[[i]]$calibration_uncertaintyType <- as.character(xl[7,12])
+    }
+    if(!is.na(xl[8,12])){
+      ts[[i]]$calibration_method <- as.character(xl[8,12])
+    }
+    if(!is.na(xl[9,12])){
+      ts[[i]]$paleoData_modernTemperature <- as.character(xl[9,12])
+    }
+    if(!is.na(xl[10,12])){
+      ts[[i]]$paleoData_notes <- as.character(xl[10,12])
+    }
+  }
+
+  #TempRecon2
+  if(ts[[i]]$paleoData_variableName == "TemperatureReconstruction2"){
+    ts[[i]]$interpretation1_variable <- "T"
+
+    if(!is.na(xl[6,18])){
+      ts[[i]]$interpretation1_seasonality <- as.character(xl[6,18])
+    }
+    if(!is.na(xl[7,18])){
+      ts[[i]]$calibration_uncertaintyType <- as.character(xl[7,18])
+    }
+    if(!is.na(xl[8,18])){
+      ts[[i]]$calibration_method <- as.character(xl[8,18])
+    }
+    if(!is.na(xl[9,18])){
+      ts[[i]]$paleoData_modernTemperature <- as.character(xl[9,18])
+    }
+    if(!is.na(xl[10,18])){
+      ts[[i]]$paleoData_notes <- as.character(xl[10,18])
+    }
+  }
+
+  #TempRecon3
+  if(ts[[i]]$paleoData_variableName == "TemperatureReconstruction3"){
+    ts[[i]]$interpretation1_variable <- "T"
+
+    if(!is.na(xl[6,24])){
+      ts[[i]]$interpretation1_seasonality <- as.character(xl[6,24])
+    }
+    if(!is.na(xl[7,24])){
+      ts[[i]]$calibration_uncertaintyType <- as.character(xl[7,24])
+    }
+    if(!is.na(xl[8,24])){
+      ts[[i]]$calibration_method <- as.character(xl[8,24])
+    }
+    if(!is.na(xl[9,24])){
+      ts[[i]]$paleoData_modernTemperature <- as.character(xl[9,24])
+    }
+    if(!is.na(xl[10,24])){
+      ts[[i]]$paleoData_notes <- as.character(xl[10,24])
+    }
+  }
 }
+
+L <- collapseTs(ts,force = TRUE)
+
+#assign in some metadata
+L$lipdVersion <-1.3
+L$createdBy <- "holoXL2lipd"
+
+#make up a chronData
+L$chronData <- L$paleoData
+
+
+cts <- vector(mode = "list",length = ncol(ct))
+
+
+for(i in 1:length(cts)){
+  #copy in metadata
+  cts[[i]] <- nts
+  cts[[i]]$paleoData_values <- as.matrix(ct[,i])
+
+  #parse name
+  cts[[i]]$paleoData_variableName <- stringr::str_replace_all(string = names(ct)[i],pattern =" ","") %>%
+    stringr::str_extract(pattern = "^[^(]+(?=())") %>%
+    stringr::str_replace_all(pattern ="[^A-Za-z0-9]","")
+
+
+  #try to get units
+  cts[[i]]$paleoData_units <- stringr::str_replace_all(string = names(ct)[i],pattern =" ","") %>%
+    stringr::str_extract(pattern = "(?<=[(])[^_]+(?=[)])")
+
+  #generate TSid
+  cts[[i]]$paleoData_TSid <- lipdR::createTSid()
+
+
+  #look for special metadata
+  #Depth
+  if(cts[[i]]$paleoData_variableName == "DateBP"){
+    if(!is.na(xl[8,30])){
+      cts[[i]]$paleoData_ageModelSource <- as.character(xl[8,30])
+    }
+    if(!is.na(xl[9,30])){
+      cts[[i]]$paleoData_depthReference <- as.character(xl[9,30])
+    }
+    if(!is.na(xl[10,30])){
+      cts[[i]]$paleoData_notes <- as.character(xl[10,30])
+    }
+  }
+
+}
+C <- collapseTs(cts,force = TRUE)
+
+L$chronData <- C$paleoData
 
 
 
