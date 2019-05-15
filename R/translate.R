@@ -23,17 +23,32 @@ convo <- googledrive::as_id(googId) %>%
 return(convo)
 }
 
+#
+# library(lipdR)
+# library(lipdverseR)
+# library(readxl)
+# library(magrittr)
+# library(dplyr)
+#
+# path <- "~/Dropbox/CLIMATE12k excel formatted/Chironomid/"
+# outPath <- "~/Dropbox/CLIMATE12k excel formatted/ChironomidLipd/"
+#
+# dir.create(outPath)
+#
+# fname <- list.files(path,pattern = "*.xlsx")
+# good = !stringr::str_detect(fname, "[~$]")
+# fname <- fname[good]
+#
+# for(i in fname){
+#   L <- climate12k_excel_to_lipd_converter(path = path,fname = i)
+#   writeLipd(L,path = outPath)
+#}
 
-library(lipdR)
-library(readxl)
-library(magrittr)
-library(dplyr)
+climate12k_excel_to_lipd_converter <- function(path,fname){
 
-path <- "~/Dropbox/CLIMATE12k excel formatted/Chironomid/"
-
-fname <- "Antonsson_2006_chironomids_Fennoscandia_Gilltjärnen_checkedSE.xlsx"
-
-xl <- read_xlsx(file.path(path,fname))
+print(paste("Converting",fname))
+  convo <- getConverter()
+xl <- readxl::read_xlsx(file.path(path,fname))
 
 #clean up special characters
 rosetta <- lipdverseR:::rosettaStone()
@@ -51,7 +66,7 @@ py <- stringr::str_extract(fname,pattern = "(?<=_)[^_]+(?=_)")
 xlm <- xl[,1:2]
 names(xlm) <- c("key","value")
 
-xlm <- filter(xlm,!is.na(value))
+xlm <- dplyr::filter(xlm,!is.na(value))
 
 #get converter
 convo <- getConverter()
@@ -92,6 +107,8 @@ nts$dataSetName <- stringr::str_c(fa,".",sn,".",py) %>%
 #find where to start
 rc <- which(xl == "Original Sample ID",arr.ind = TRUE)
 
+
+
 #chop out the data
 xlt <- xl[rc[1]:nrow(xl),rc[2]:ncol(xl)]
 
@@ -104,6 +121,21 @@ xlp <- xlp[-1,]
 
 #separate into paleo and chron
 c2 <- which(names(xlp) == "Original Date ID")
+
+toCheck <- c("Top Depth of Date (cm)",
+                "Bottom Depth of Date (cm)",
+                "Date Type")
+w <- 1
+while(length(c2)==0){
+  c2 <- which(names(xlp) == toCheck[w])
+  w = w+1
+}
+
+if(length(c2)==1){
+  hasChron = TRUE
+}else{
+  hasChron = FALSE
+}
 
 #isolate chron
 ct <- xlp[,c2:ncol(xlp)]
@@ -155,6 +187,14 @@ for(i in 1:length(ts)){
   #TempRecon1
   if(ts[[i]]$paleoData_variableName == "TemperatureReconstruction1"){
     ts[[i]]$interpretation1_variable <- "T"
+    ts[[i]]$interpretation1_direction <- "positive"
+    ts[[i]]$interpretation1_scope <- "climate"
+    if(ts[[i]]$timeseriesType == "Uncalibrated"){
+      ts[[i]]$paleoData_units <- NA
+    }else{
+      ts[[i]]$paleoData_units <- "degC"
+    }
+
     if(!is.na(xl[6,12])){
       ts[[i]]$interpretation1_seasonality <- as.character(xl[6,12])
     }
@@ -175,6 +215,10 @@ for(i in 1:length(ts)){
   #TempRecon2
   if(ts[[i]]$paleoData_variableName == "TemperatureReconstruction2"){
     ts[[i]]$interpretation1_variable <- "T"
+    ts[[i]]$interpretation1_direction <- "positive"
+    ts[[i]]$interpretation1_scope <- "climate"
+
+
 
     if(!is.na(xl[6,18])){
       ts[[i]]$interpretation1_seasonality <- as.character(xl[6,18])
@@ -196,6 +240,9 @@ for(i in 1:length(ts)){
   #TempRecon3
   if(ts[[i]]$paleoData_variableName == "TemperatureReconstruction3"){
     ts[[i]]$interpretation1_variable <- "T"
+    ts[[i]]$interpretation1_direction <- "positive"
+    ts[[i]]$interpretation1_scope <- "climate"
+    ts[[i]]$paleoData_useInGlobalTemperatureAnalysis <- "?"
 
     if(!is.na(xl[6,24])){
       ts[[i]]$interpretation1_seasonality <- as.character(xl[6,24])
@@ -265,6 +312,9 @@ for(i in 1:length(cts)){
 C <- collapseTs(cts,force = TRUE)
 
 L$chronData <- C$paleoData
+
+return(L)
+}
 
 
 
