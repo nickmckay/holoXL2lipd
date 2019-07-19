@@ -49,7 +49,7 @@ climate12k_excel_to_lipd_converter <- function(path,fname){
   print(paste("Converting",fname))
   convo <- getConverter()
   xl <- readxl::read_xlsx(file.path(path,fname))
-
+#This is weird  xl <- readr::read_csv("~/Dropbox/CLIMATE12k excel formatted/Chironomid/new_chiro_data_05072019//Self_2015_chironomids_ArcticRussia_PTHE_checkedMT.csv")
   #clean up special characters
   rosetta <- lipdverseR:::rosettaStone()
   xl <- purrr::map_df(xl,lipdverseR:::replaceSpecialCharacters,rosetta)
@@ -144,11 +144,16 @@ climate12k_excel_to_lipd_converter <- function(path,fname){
   if(hasChron){
     #isolate chron
     ct <- xlp[,c2:ncol(xlp)]
-
+    if(any(is.na(names(ct)))){
+      ct <- ct[-which(is.na(names(ct)))]
+    }
+    if(any(rowSums(!is.na(ct)) == 0)){
     ct <- ct[-which(rowSums(!is.na(ct)) == 0), ]
+    }
+
 
     #isolate paleo
-    pt <- xlp[,-c((c2-1):ncol(xlp))]
+      pt <- xlp[,-c((c2-1):ncol(xlp))]
   }else{
     pt <- xlp[,-ncol(xlp)]
   }
@@ -226,7 +231,11 @@ climate12k_excel_to_lipd_converter <- function(path,fname){
       ts[[i]]$interpretation1_variable <- "T"
       ts[[i]]$interpretation1_direction <- "positive"
       ts[[i]]$interpretation1_scope <- "climate"
-
+      if(ts[[i]]$timeseriesType == "Uncalibrated"){
+        ts[[i]]$paleoData_units <- NA
+      }else{
+        ts[[i]]$paleoData_units <- "degC"
+      }
 
 
       if(!is.na(xl[6,18])){
@@ -252,6 +261,12 @@ climate12k_excel_to_lipd_converter <- function(path,fname){
       ts[[i]]$interpretation1_direction <- "positive"
       ts[[i]]$interpretation1_scope <- "climate"
       ts[[i]]$paleoData_useInGlobalTemperatureAnalysis <- "?"
+      if(ts[[i]]$timeseriesType == "Uncalibrated"){
+        ts[[i]]$paleoData_units <- NA
+      }else{
+        ts[[i]]$paleoData_units <- "degC"
+      }
+
 
       if(!is.na(xl[6,24])){
         ts[[i]]$interpretation1_seasonality <- as.character(xl[6,24])
